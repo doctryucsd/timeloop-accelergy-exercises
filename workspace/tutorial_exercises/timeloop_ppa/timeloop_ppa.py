@@ -97,9 +97,6 @@ def run_layer(layer_data: List[Tuple[str, int]], x_dim: int, y_dim: int, frequen
         log_to=os.path.join(output_dir, f"{run_prefix}.log"),
     )
 
-    from rich import print
-    print(result)
-
     return result
 
 def timeloop_ppa(model: nn.Module, x_test: Tensor, x_dim: int, y_dim: int, frequency: int, cell_bit: int):
@@ -108,9 +105,6 @@ def timeloop_ppa(model: nn.Module, x_test: Tensor, x_dim: int, y_dim: int, frequ
     """
     layer_data = get_layer_data(model, x_test)
     
-    from rich import print
-    print(layer_data)
-
     # results = joblib.Parallel(n_jobs=32)(
     #     joblib.delayed(run_layer)(layer, x_dim, y_dim, frequency) for layer in layer_data
     # )
