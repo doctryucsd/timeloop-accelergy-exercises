@@ -105,14 +105,14 @@ def timeloop_ppa(model: nn.Module, x_test: Tensor, x_dim: int, y_dim: int, frequ
     """
     layer_data = get_layer_data(model, x_test)
     
-    # results = joblib.Parallel(n_jobs=32)(
-    #     joblib.delayed(run_layer)(layer, x_dim, y_dim, frequency) for layer in layer_data
-    # )
+    results = joblib.Parallel(n_jobs=32)(
+        joblib.delayed(run_layer)(layer, x_dim, y_dim, frequency) for layer in layer_data
+    )
 
     # DEBUG
-    results = []
-    for layer in layer_data:
-        result = run_layer(layer, x_dim, y_dim, frequency)
-        results.append(result)
+    # results = []
+    # for layer in layer_data:
+    #     result = run_layer(layer, x_dim, y_dim, frequency)
+    #     results.append(result)
 
     return results2ppa(results)
