@@ -30,10 +30,10 @@ architecture:
     spatial: {meshX: 8, meshY: 8}
     constraints:
       spatial:
-        permutation: []
-        factors: []
-        maximize_dims: []
-        split: len(spec.problem.instance)
+        permutation: [N, P, Q, R, S, C, M]
+        factors: [N=1, P=1, Q=1, R=1]
+        maximize_dims: [[M]]
+        split: 7
 
     {% if reg_enabled|default(True) %}
   - !Component # Global buffer for inputs & outputs
