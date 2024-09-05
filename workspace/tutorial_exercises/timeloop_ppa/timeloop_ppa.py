@@ -8,7 +8,7 @@ from cimloop.workspace import get_run_dir, results2ppa
 from torch import Tensor, nn
 
 THIS_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-TOP_PATH = f"{THIS_SCRIPT_DIR}/top.yaml.jinja"
+TOP_PATH = f"{THIS_SCRIPT_DIR}/../../top.yaml.jinja"
 
 
 def update_spec_problem(dims: List[Tuple[str, int]], spec: tl.Specification):
@@ -24,6 +24,13 @@ def update_spec_problem(dims: List[Tuple[str, int]], spec: tl.Specification):
         coeff_name = coeff["name"]
         if coeff_name in coefficients:
             coeff["default"] = coefficients[coeff_name]
+
+
+def update_spec_arch(
+    x_dim: int, y_dim: int, spec: tl.Specification
+):
+    spec.architecture.find("PE").spatial.meshX = x_dim
+    spec.architecture.find("PE").spatial.meshY = y_dim
 
 
 def update_spec_problem_instance_linear(
@@ -99,8 +106,7 @@ def run_layer(
 ):
     spec = tl.Specification.from_yaml_files(TOP_PATH)
     update_spec_problem(layer_data, spec)
-    spec.architecture.find("PE").spatial.meshX = x_dim
-    spec.architecture.find("PE").spatial.meshY = y_dim
+    # update_spec_arch(x_dim, y_dim, spec)
     spec.variables.global_cycle_seconds = 1 / frequency
     spec.mapper.diagnostics = True
 
@@ -118,8 +124,10 @@ def run_layer(
 def timeloop_ppa(
     model: nn.Module,
     x_test: Tensor,
-    x_dim_list: List[int],
-    y_dim_list: List[int],
+    cnn_x_dim_1: int,
+    cnn_y_dim_1: int,
+    cnn_x_dim_2: int,
+    cnn_y_dim_2: int,
     frequency: int,
     cell_bit: int,
 ):
@@ -127,19 +135,25 @@ def timeloop_ppa(
     remember to add batch 1 for x_test
     """
     layer_data = get_layer_data(model, x_test)
+
+    # xy dim
+    encoder_layer_data = layer_data[-1]
+    x_dim_list = [cnn_x_dim_1, cnn_x_dim_2, encoder_layer_data[1][1]]
+    y_dim_list = [cnn_y_dim_1, cnn_y_dim_2, encoder_layer_data[0][1]]
+
     assert (
         len(layer_data) == len(x_dim_list) == len(y_dim_list)
     ), f"len(layer_data)={len(layer_data)}, len(x_dim_list)={len(x_dim_list)}, len(y_dim_list)={len(y_dim_list)}"
 
-    results = joblib.Parallel(n_jobs=32)(
-        joblib.delayed(run_layer)(layer, x_dim, y_dim, frequency)
-        for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list)
-    )
+    # results = joblib.Parallel(n_jobs=32)(
+    #     joblib.delayed(run_layer)(layer, x_dim, y_dim, frequency)
+    #     for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list)
+    # )
 
     # DEBUG
-    # results = []
-    # for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list):
-    #     result = run_layer(layer, x_dim, y_dim, frequency)
-    #     results.append(result)
+    results = []
+    for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list):
+        result = run_layer(layer, x_dim, y_dim, frequency)
+        results.append(result)
 
     return results2ppa(results)
