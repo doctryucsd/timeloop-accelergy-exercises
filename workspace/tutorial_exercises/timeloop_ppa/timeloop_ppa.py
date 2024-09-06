@@ -8,7 +8,7 @@ from cimloop.workspace import get_run_dir, results2ppa
 from torch import Tensor, nn
 
 THIS_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-TOP_PATH = f"{THIS_SCRIPT_DIR}/../../top.yaml.jinja"
+TOP_PATH = f"{THIS_SCRIPT_DIR}/top.yaml.jinja"
 
 
 def update_spec_problem(dims: List[Tuple[str, int]], spec: tl.Specification):
@@ -106,7 +106,7 @@ def run_layer(
 ):
     spec = tl.Specification.from_yaml_files(TOP_PATH)
     update_spec_problem(layer_data, spec)
-    # update_spec_arch(x_dim, y_dim, spec)
+    update_spec_arch(x_dim, y_dim, spec)
     spec.variables.global_cycle_seconds = 1 / frequency
     spec.mapper.diagnostics = True
 
@@ -128,6 +128,8 @@ def timeloop_ppa(
     cnn_y_dim_1: int,
     cnn_x_dim_2: int,
     cnn_y_dim_2: int,
+    encoder_x_dim: int,
+    encoder_y_dim: int,
     frequency: int,
     cell_bit: int,
 ):
@@ -138,22 +140,24 @@ def timeloop_ppa(
 
     # xy dim
     encoder_layer_data = layer_data[-1]
-    x_dim_list = [cnn_x_dim_1, cnn_x_dim_2, encoder_layer_data[1][1]]
-    y_dim_list = [cnn_y_dim_1, cnn_y_dim_2, encoder_layer_data[0][1]]
+    # x_dim_list = [cnn_x_dim_1, cnn_x_dim_2, encoder_layer_data[1][1]]
+    # y_dim_list = [cnn_y_dim_1, cnn_y_dim_2, encoder_layer_data[0][1]]
+    x_dim_list = [cnn_x_dim_1, cnn_x_dim_2, encoder_x_dim]
+    y_dim_list = [cnn_y_dim_1, cnn_y_dim_2, encoder_y_dim]
 
     assert (
         len(layer_data) == len(x_dim_list) == len(y_dim_list)
     ), f"len(layer_data)={len(layer_data)}, len(x_dim_list)={len(x_dim_list)}, len(y_dim_list)={len(y_dim_list)}"
 
-    # results = joblib.Parallel(n_jobs=32)(
-    #     joblib.delayed(run_layer)(layer, x_dim, y_dim, frequency)
-    #     for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list)
-    # )
+    results = joblib.Parallel(n_jobs=32)(
+        joblib.delayed(run_layer)(layer, x_dim, y_dim, frequency)
+        for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list)
+    )
 
     # DEBUG
-    results = []
-    for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list):
-        result = run_layer(layer, x_dim, y_dim, frequency)
-        results.append(result)
+    # results = []
+    # for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list):
+    #     result = run_layer(layer, x_dim, y_dim, frequency)
+    #     results.append(result)
 
     return results2ppa(results)

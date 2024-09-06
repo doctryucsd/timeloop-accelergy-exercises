@@ -32,8 +32,8 @@ architecture:
       spatial:
         permutation: [M, C, N, P, Q, R, S, G]
         factors: [N=1, P=1, Q=1, R=1]
-        maximize_dims: [[M, C]]
-        split: 1
+        maximize_dims: [[]]
+        split: 999
 
     {% if reg_enabled|default(True) %}
   - !Component # Global buffer for inputs & outputs
