@@ -1,1 +1,1 @@
-from .tutorial_exercises.timeloop_ppa import timeloop_ppa
+from .tutorial_exercises.timeloop_ppa import timeloop_ppa_hdnn, timeloop_ppa_layers, timeloop_ppa_eyeriss

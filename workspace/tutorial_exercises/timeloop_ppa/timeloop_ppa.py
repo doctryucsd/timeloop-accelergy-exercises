@@ -121,7 +121,7 @@ def run_layer(
     return result
 
 
-def timeloop_ppa(
+def timeloop_ppa_hdnn(
     model: nn.Module,
     x_test: Tensor,
     cnn_x_dim_1: int,
@@ -131,7 +131,6 @@ def timeloop_ppa(
     encoder_x_dim: int,
     encoder_y_dim: int,
     frequency: int,
-    cell_bit: int,
 ):
     """
     remember to add batch 1 for x_test
@@ -139,7 +138,6 @@ def timeloop_ppa(
     layer_data = get_layer_data(model, x_test)
 
     # xy dim
-    encoder_layer_data = layer_data[-1]
     # x_dim_list = [cnn_x_dim_1, cnn_x_dim_2, encoder_layer_data[1][1]]
     # y_dim_list = [cnn_y_dim_1, cnn_y_dim_2, encoder_layer_data[0][1]]
     x_dim_list = [cnn_x_dim_1, cnn_x_dim_2, encoder_x_dim]
@@ -160,4 +158,190 @@ def timeloop_ppa(
     #     result = run_layer(layer, x_dim, y_dim, frequency)
     #     results.append(result)
 
+    return results2ppa(results)
+
+def timeloop_ppa_layers(
+    model: nn.Module,
+    x_test: Tensor,
+    x_dim_list: List[int],
+    y_dim_list: List[int],
+    frequency: int,
+):
+    """
+    remember to add batch 1 for x_test
+    """
+    layer_data = get_layer_data(model, x_test)
+
+    assert (
+        len(layer_data) == len(x_dim_list) == len(y_dim_list)
+    ), f"len(layer_data)={len(layer_data)}, len(x_dim_list)={len(x_dim_list)}, len(y_dim_list)={len(y_dim_list)}"
+
+    results = joblib.Parallel(n_jobs=32)(
+        joblib.delayed(run_layer)(layer, x_dim, y_dim, frequency)
+        for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list)
+    )
+
+    # DEBUG
+    # results = []
+    # for layer, x_dim, y_dim in zip(layer_data, x_dim_list, y_dim_list):
+    #     result = run_layer(layer, x_dim, y_dim, frequency)
+    #     results.append(result)
+
+    return results2ppa(results)
+
+def run_layer_eyeriss(
+    layer_data: List[Tuple[str, int]],
+    mesh_x: int,
+    mesh_y: int,
+    glb_depth: int,
+    glb_width: int,
+    glb_n_banks: int,
+    glb_read_bw: int,
+    glb_write_bw: int,
+    rf_depth: int,
+    psum_rf_depth: int,
+    rf_width: int,
+    rf_read_bw: int,
+    rf_write_bw: int,
+    mac_mult_width: int,
+    mac_adder_width: int,
+    frequency: int,
+):
+    """
+    Run Timeloop analysis for a single layer using Eyeriss-like architecture parameters.
+    """
+    spec = tl.Specification.from_yaml_files(TOP_PATH)
+    
+    # Update problem dimensions
+    update_spec_problem(layer_data, spec)
+    
+    # Update architecture parameters
+    # Update PE array dimensions
+    spec.architecture.find("PE_column").spatial.meshX = mesh_x
+    spec.architecture.find("PE").spatial.meshY = mesh_y
+    
+    # Update global buffer parameters
+    glb = spec.architecture.find("shared_glb")
+    glb.attributes.depth = glb_depth
+    glb.attributes.width = glb_width
+    glb.attributes.n_banks = glb_n_banks
+    glb.attributes.read_bandwidth = glb_read_bw
+    glb.attributes.write_bandwidth = glb_write_bw
+    
+    # Update RF parameters
+    ifmap_spad = spec.architecture.find("ifmap_spad")
+    weights_spad = spec.architecture.find("weights_spad")
+    psum_spad = spec.architecture.find("psum_spad")
+    
+    # Update ifmap and weights RF
+    for spad in [ifmap_spad, weights_spad]:
+        spad.attributes.depth = rf_depth
+        spad.attributes.width = rf_width
+        spad.attributes.read_bandwidth = rf_read_bw
+        spad.attributes.write_bandwidth = rf_write_bw
+    
+    # Update psum RF
+    psum_spad.attributes.depth = psum_rf_depth
+    psum_spad.attributes.width = rf_width
+    psum_spad.attributes.read_bandwidth = rf_read_bw
+    psum_spad.attributes.write_bandwidth = rf_write_bw
+    
+    # Update MAC parameters
+    mac = spec.architecture.find("mac")
+    mac.attributes.multiplier_width = mac_mult_width
+    mac.attributes.adder_width = mac_adder_width
+    
+    # Update technology and frequency
+    spec.variables.global_cycle_seconds = 1 / frequency
+    
+    # Enable mapper diagnostics
+    spec.mapper.diagnostics = True
+    
+    # Run mapper
+    output_dir = get_run_dir()
+    run_prefix = f"{output_dir}/timeloop-mapper"
+    result = tl.call_mapper(
+        specification=spec,
+        output_dir=output_dir,
+        log_to=os.path.join(output_dir, f"{run_prefix}.log"),
+    )
+    
+    return result
+
+def timeloop_ppa_eyeriss(
+    model: nn.Module,
+    x_test: Tensor,
+    # Compute array parameters
+    mesh_x: int = 14,  # Number of PE columns
+    mesh_y: int = 12,  # Number of PEs per column
+    # Global buffer parameters
+    glb_depth: int = 16384,
+    glb_width: int = 64,
+    glb_n_banks: int = 32,
+    glb_read_bw: int = 16,
+    glb_write_bw: int = 16,
+    rf_depth: int = 12,  # Depth for ifmap and weights RF
+    psum_rf_depth: int = 16,  # Depth for psum RF
+    rf_width: int = 16,
+    rf_read_bw: int = 2,
+    rf_write_bw: int = 2,
+    # MAC parameters
+    mac_mult_width: int = 8,
+    mac_adder_width: int = 16,
+    # Frequency
+    frequency: int = 1000,  # MHz
+):
+    """
+    Run Timeloop PPA analysis for an Eyeriss-like architecture with customizable parameters.
+    
+    Args:
+        model: PyTorch model to analyze
+        x_test: Input tensor for the model
+        mesh_x: Number of PE columns (default: 14)
+        mesh_y: Number of PEs per column (default: 12)
+        glb_depth: Global buffer depth in words (default: 16384)
+        glb_width: Global buffer width in words (default: 64)
+        glb_n_banks: Number of global buffer banks (default: 32)
+        glb_read_bw: Global buffer read bandwidth (default: 16)
+        glb_write_bw: Global buffer write bandwidth (default: 16)
+        rf_depth: RF depth for ifmap and weights (default: 12)
+        psum_rf_depth: RF depth for partial sums (default: 16)
+        rf_width: RF width in words (default: 16)
+        rf_read_bw: RF read bandwidth (default: 2)
+        rf_write_bw: RF write bandwidth (default: 2)
+        mac_mult_width: MAC multiplier width in bits (default: 8)
+        mac_adder_width: MAC adder width in bits (default: 16)
+        technology: Technology node (default: "32nm")
+        frequency: Operating frequency in MHz (default: 1000)
+    
+    Returns:
+        PPA metrics (power, performance, area)
+    """
+    # Get layer data from the model
+    layer_data = get_layer_data(model, x_test)
+    
+    # Run Timeloop analysis for each layer using the Eyeriss-specific parameters
+    results = joblib.Parallel(n_jobs=32)(
+        joblib.delayed(run_layer_eyeriss)(
+            layer,
+            mesh_x,
+            mesh_y,
+            glb_depth,
+            glb_width,
+            glb_n_banks,
+            glb_read_bw,
+            glb_write_bw,
+            rf_depth,
+            psum_rf_depth,
+            rf_width,
+            rf_read_bw,
+            rf_write_bw,
+            mac_mult_width,
+            mac_adder_width,
+            frequency,
+        )
+        for layer in layer_data
+    )
+    
+    # Convert results to PPA metrics
     return results2ppa(results)
