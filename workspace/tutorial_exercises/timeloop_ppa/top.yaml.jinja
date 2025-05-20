@@ -1,5 +1,5 @@
 # This file will be converted into a YAML file by Jinja2 templating.
-{{add_to_path(cwd() ~ '/inputs')}}
+{{add_to_path(cwd() ~ '/top_inputs')}}
 
 # Grab the necessary top keys from each file and put them here
 architecture: {{include('arch.yaml', 'architecture')}}

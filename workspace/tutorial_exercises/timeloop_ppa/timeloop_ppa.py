@@ -8,7 +8,6 @@ from cimloop.workspace import get_run_dir, results2ppa
 from torch import Tensor, nn
 
 THIS_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-TOP_PATH = f"{THIS_SCRIPT_DIR}/top.yaml.jinja"
 
 
 def update_spec_problem(dims: List[Tuple[str, int]], spec: tl.Specification):
@@ -104,6 +103,7 @@ def get_layer_data(model: nn.Module, input_tensor: Tensor):
 def run_layer(
     layer_data: List[Tuple[str, int]], x_dim: int, y_dim: int, frequency: int
 ):
+    TOP_PATH = f"{THIS_SCRIPT_DIR}/top.yaml.jinja"
     spec = tl.Specification.from_yaml_files(TOP_PATH)
     update_spec_problem(layer_data, spec)
     update_spec_arch(x_dim, y_dim, spec)
@@ -210,6 +210,7 @@ def run_layer_eyeriss(
     """
     Run Timeloop analysis for a single layer using Eyeriss-like architecture parameters.
     """
+    TOP_PATH = f"{THIS_SCRIPT_DIR}/eyeriss.yaml.jinja2"
     spec = tl.Specification.from_yaml_files(TOP_PATH)
     
     # Update problem dimensions
@@ -271,25 +272,21 @@ def run_layer_eyeriss(
 def timeloop_ppa_eyeriss(
     model: nn.Module,
     x_test: Tensor,
-    # Compute array parameters
-    mesh_x: int = 14,  # Number of PE columns
-    mesh_y: int = 12,  # Number of PEs per column
-    # Global buffer parameters
-    glb_depth: int = 16384,
-    glb_width: int = 64,
-    glb_n_banks: int = 32,
-    glb_read_bw: int = 16,
-    glb_write_bw: int = 16,
-    rf_depth: int = 12,  # Depth for ifmap and weights RF
-    psum_rf_depth: int = 16,  # Depth for psum RF
-    rf_width: int = 16,
-    rf_read_bw: int = 2,
-    rf_write_bw: int = 2,
-    # MAC parameters
-    mac_mult_width: int = 8,
-    mac_adder_width: int = 16,
-    # Frequency
-    frequency: int = 1000,  # MHz
+    mesh_x,
+    mesh_y,
+    glb_depth,
+    glb_width,
+    glb_n_banks,
+    glb_read_bw,
+    glb_write_bw,
+    rf_depth,
+    psum_rf_depth,
+    rf_width,
+    rf_read_bw,
+    rf_write_bw,
+    mac_mult_width,
+    mac_adder_width,
+    frequency,
 ):
     """
     Run Timeloop PPA analysis for an Eyeriss-like architecture with customizable parameters.
@@ -343,5 +340,28 @@ def timeloop_ppa_eyeriss(
         for layer in layer_data
     )
     
+    # DEBUG
+    # results = []
+    # for layer in layer_data:
+    #     result = run_layer_eyeriss(
+    #         layer,
+    #         mesh_x,
+    #         mesh_y,
+    #         glb_depth,
+    #         glb_width,
+    #         glb_n_banks,
+    #         glb_read_bw,
+    #         glb_write_bw,
+    #         rf_depth,
+    #         psum_rf_depth,
+    #         rf_width,
+    #         rf_read_bw,
+    #         rf_write_bw,
+    #         mac_mult_width,
+    #         mac_adder_width,
+    #         frequency,
+    #     )
+    #     results.append(result)
+
     # Convert results to PPA metrics
     return results2ppa(results)
